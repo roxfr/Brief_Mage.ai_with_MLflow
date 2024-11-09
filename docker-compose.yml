@@ -1,0 +1,67 @@
+services:
+  magic-platform:
+    env_file:
+      - .env.dev
+    build:
+      context: .
+    command: /app/run_app.sh mage start $PROJECT_NAME
+    ports:
+      - 6789:6789
+    volumes:
+      # Mount your local codebase to the container.
+      #- .:/$MAGE_CODE_PATH # origine
+      #- "${PWD}:/${MAGE_CODE_PATH}" # windows
+      - "${SOURCE_PATH}/:/home/src"
+      # Store the data output on local machine to easily debug (optional).
+      #- ~/.mage_data:/${MAGE_CODE_PATH}/mage_data # origine
+      #- "~/.mage_data:/${MAGE_CODE_PATH}/mage_data" # windows
+      - "${SOURCE_PATH}/mage_data:/home/src/mage_data"
+      # Initial credentials to create an IAM user with limited permissions for deployment.
+      #- ~/.aws:/root/.aws # origine
+      - "~/.aws:/root/.aws" # windows
+      # Local machine’s SSH keys to pull and push to your GitHub repository.
+      #- ~/.ssh:/root/.ssh:ro # origine
+      - "~/.ssh:/root/.ssh:ro" # windows
+      # Local machine’s GitHub configs
+      #- ~/.gitconfig:/root/.gitconfig:ro # origine
+      - "~/.gitconfig:/root/.gitconfig:ro" # windows
+    restart: on-failure:5
+    networks:
+      - app-network
+    depends_on:
+      - magic-database
+    stdin_open: true # used for interactive debugging
+    tty: true # used for interactive debugging
+  magic-database:
+    image: pgvector/pgvector:0.6.0-pg16
+    env_file:
+      - .env.dev
+    ports:
+      - 5432:5432
+    volumes:
+      - ~/.postgres/data:/var/lib/postgresql/data # origine/windows
+      # Custom database initialization scripts (optional).
+      - ./scripts/database:/docker-entrypoint-initdb.d
+    restart: always
+    networks:
+      - app-network
+
+  mlflow:
+    env_file:
+      - .env.dev
+    build:
+      context: .
+      dockerfile: mlflow.dockerfile
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    ports:
+      - "5000:5000"
+    volumes:
+      #- "${PWD}/mlflow_data:/home/mlflow_data/" # origine/windows  
+      - "${SOURCE_PATH}/mlflow_data:/home/mlflow_data/"  
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
